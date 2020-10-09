@@ -35,12 +35,12 @@ public class NetworkMan : MonoBehaviour
         // All this is explained in Week 1-4 slides
         udp = new UdpClient();
         Debug.Log("Connecting...");
-        udp.Connect("localhost",12345);
+        udp.Connect("54.147.237.83", 12345);
         Byte[] sendBytes = Encoding.ASCII.GetBytes("connect");
         udp.Send(sendBytes, sendBytes.Length);
         udp.BeginReceive(new AsyncCallback(OnReceived), udp);
 
-        InvokeRepeating("HeartBeat", 1, 1);
+        InvokeRepeating("SendPosition", 1, 0.033f);
     }
 
     void OnDestroy(){
@@ -57,13 +57,26 @@ public class NetworkMan : MonoBehaviour
             public float B;
         }
 
+    [Serializable]
+    public struct playerPositionOrientation
+    {
+        public float x;
+        public float y;
+        public float z;
+        public float rx;
+        public float ry;
+        public float rz;
+        public float rw;
+    }
+
     /// <summary>
     /// A structure that replicates our player dictionary on server
     /// </summary>
     [Serializable]
     public class Player{
         public string id;
-        public receivedColor color;        
+        public receivedColor color;
+        public playerPositionOrientation posOri;
     }
 
 
@@ -194,6 +207,9 @@ public class NetworkMan : MonoBehaviour
             foreach (NetworkMan.Player player in lastestGameState.players){
                 string playerID = player.id;
                 currentPlayers[player.id].GetComponent<Renderer>().material.color = new Color(player.color.R,player.color.G,player.color.B);
+                if(player.id != myAddress)
+                currentPlayers[player.id].GetComponent<Transform>().position = new Vector3(player.posOri.x, player.posOri.y, player.posOri.z);
+                currentPlayers[player.id].GetComponent<Transform>().rotation = new Quaternion(player.posOri.rx, player.posOri.ry, player.posOri.rz, player.posOri.rw);
             }
             lastestGameState.players = new Player[0];
         }
@@ -211,8 +227,20 @@ public class NetworkMan : MonoBehaviour
         }
     }
     
-    void HeartBeat(){
-        Byte[] sendBytes = Encoding.ASCII.GetBytes("heartbeat");
+    void SendPosition()
+    {
+        Transform trans = currentPlayers[myAddress].GetComponent<Transform>();
+        playerPositionOrientation pPO = new playerPositionOrientation();
+        pPO.x = trans.position.x;
+        pPO.y = trans.position.y;
+        pPO.z = trans.position.z;
+        pPO.rx = trans.rotation.x;
+        pPO.ry = trans.rotation.y;
+        pPO.rz = trans.rotation.z;
+        pPO.rw = trans.rotation.w;
+
+        string json = JsonUtility.ToJson(pPO);
+        Byte[] sendBytes = Encoding.ASCII.GetBytes(json);
         udp.Send(sendBytes, sendBytes.Length);
     }
 
